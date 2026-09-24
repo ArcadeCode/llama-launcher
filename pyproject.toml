@@ -1,0 +1,11 @@
+[project]
+name = "llama-launcher"
+version = "0.1.0"
+description = "Custom launcher for Llama.cpp"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "gguf>=0.19.0",
+    "questionary>=2.1.1",
+    "rich>=15.0.0",
+]
