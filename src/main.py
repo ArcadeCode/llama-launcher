@@ -19,6 +19,8 @@ from pathlib import Path
 from rich.console import Console
 from rich.rule import Rule
 
+from config import DEFAULTS
+
 console = Console()
 
 
@@ -41,11 +43,11 @@ def ensure_deps() -> None:
 ensure_deps()
 
 # Imports internes (après s'être assuré que les deps sont présentes)
-import ui
 from config import MODELS_DIRS
 from discovery import find_models, find_server_executable
 from server import build_command, launch_server
 from settings import load_for_model, save_for_model
+from ui import SelectedModelResponseType, ui
 
 # ─── Point d'entrée ──────────────────────────────────────────────────────────
 
@@ -53,11 +55,11 @@ from settings import load_for_model, save_for_model
 def main() -> None:
     ui.print_banner()
 
-    # 1 — Sélection du serveur
+    # 1. Server selection
     default_server = find_server_executable()
     server_path = ui.select_server(default_server)
 
-    # 2 — Recherche et sélection du modèle
+    # 2. Search & selection of models
     console.print()
     console.print("  [dim]Recherche des modèles .gguf...[/dim]")
     models = find_models(MODELS_DIRS)
@@ -66,36 +68,52 @@ def main() -> None:
     else:
         console.print("  [yellow]Aucun modèle trouvé automatiquement.[/yellow]")
 
-    selected_model, gguf_info = ui.select_model(models)
+    response_type, selected_model, gguf_info = ui.select_model(models)
 
-    # 3 — Chargement des paramètres sauvegardés (ou defaults)
-    params = load_for_model(selected_model)
-    # Détecter si des paramètres personnalisés existent déjà pour ce modèle
-    from settings import load_all
+    if response_type != SelectedModelResponseType.ROUTING:
+        # 3. Saved params loading (or default)
+        params = load_for_model(selected_model)
+        # Detecting for existing custom params for this model
+        from settings import load_all
 
-    model_key = Path(selected_model).name
-    has_saved = model_key in load_all()
+        model_key = Path(selected_model).name
+        has_saved = model_key in load_all()
 
-    # 4 — Configuration interactive
-    params = ui.configure_params(params, gguf_info, saved_note=has_saved)
+        # 4. Interactive configuration
+        params = ui.configure_params(params, gguf_info, saved_note=has_saved)
 
-    # 5 — Aperçu de la commande
-    cmd = build_command(server_path, selected_model, params)
-    ui.show_command_preview(server_path, selected_model, params, cmd)
+        # 5. Command overview
+        cmd = build_command(server_path, selected_model, params)
+        ui.show_command_preview(
+            server_path,
+            routing_mode=False,
+            model=selected_model,
+            params=params,
+            cmd=cmd,
+        )
+
+    else:
+        # 5. Command overview with routing mode
+        params = DEFAULTS
+        cmd = build_command(server_path, "", params, routing_mode_enabled=True)
+        ui.show_command_preview(
+            server_path, routing_mode=True, model=selected_model, params=params, cmd=cmd
+        )
 
     # 6 — Confirmation et lancement
     if not ui.confirm_launch(params["host"], params["port"]):
         console.print("\n  [dim]Annulé.[/dim]\n")
         return
 
-    # Sauvegarde des paramètres avant de lancer (même si le serveur plante)
-    save_for_model(selected_model, params)
-    console.print(
-        f"  [dim]Paramètres sauvegardés pour[/dim] [bold]{Path(selected_model).name}[/bold]"
-    )
-    console.print()
+    if response_type != SelectedModelResponseType.ROUTING:
+        # Sauvegarde des paramètres avant de lancer (même si le serveur plante)
+        save_for_model(selected_model, params)
+        console.print(
+            f"  [dim]Paramètres sauvegardés pour[/dim] [bold]{Path(selected_model).name}[/bold]"
+        )
+        console.print()
 
-    launch_server(server_path, selected_model, params)
+    launch_server(cmd, params)
 
     console.print()
     console.print(Rule(style="dim"))

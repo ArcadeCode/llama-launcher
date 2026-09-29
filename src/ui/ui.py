@@ -7,6 +7,7 @@ Toutes les interactions avec l'utilisateur passent par ce module.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import questionary
 from rich import box
@@ -18,6 +19,8 @@ from rich.text import Text
 
 from config import SPLIT_MODES
 from utils import format_size_from_path, q
+
+from .response import SelectedModelResponseType
 
 console = Console()
 
@@ -73,7 +76,9 @@ def select_server(default_server: str | None) -> str:
 # ─── Sélection du modèle ────────────────────────────────────────────────────
 
 
-def select_model(models: list[Path]) -> tuple[str, dict]:
+def select_model(
+    models: list[Path],
+) -> tuple[SelectedModelResponseType, str, dict]:
     """
     Affiche la liste des modèles avec navigation au clavier.
     Retourne (chemin_modele, gguf_info).
@@ -95,13 +100,19 @@ def select_model(models: list[Path]) -> tuple[str, dict]:
     # Construction des choix : label affiché = "nom.gguf  (taille)"
     # TODO: Edit by making this an table and adding Parameter count.
     MANUAL = "── Saisir un chemin manuellement... ──"
-    choices = [
-        questionary.Choice(
-            title=f"{m.name}  ({format_size_from_path(m)})",
-            value=str(m),
-        )
-        for m in models
-    ] + [questionary.Choice(title=MANUAL, value=MANUAL)]
+    ROUTING_MODE = "Enable routing mode..."
+
+    choices = (
+        [
+            questionary.Choice(
+                title=f"{m.name}  ({format_size_from_path(m)})",
+                value=str(m),
+            )
+            for m in models
+        ]
+        + [questionary.Choice(title=ROUTING_MODE, value=ROUTING_MODE)]
+        + [questionary.Choice(title=MANUAL, value=MANUAL)]
+    )
 
     selected_value = q(
         questionary.select,
@@ -113,22 +124,31 @@ def select_model(models: list[Path]) -> tuple[str, dict]:
 
     if selected_value == MANUAL:
         model_path = q(questionary.text, "  Chemin complet du modèle")
+        response_type = SelectedModelResponseType.MANUAL
+
+    elif selected_value == ROUTING_MODE:
+        model_path = None
+        info = {}
+        response_type = SelectedModelResponseType.ROUTING
+
     else:
         model_path = selected_value
+        response_type = SelectedModelResponseType.MODEL
 
-    console.print("\n  [dim]Lecture des métadonnées...[/dim]")
-    info = read_gguf_info(model_path)
+    if selected_value != ROUTING_MODE:
+        console.print("\n  [dim]Lecture des métadonnées...[/dim]")
+        info = read_gguf_info(model_path)
 
-    arch = info.get("arch", "?")
-    name = info.get("name", Path(model_path).stem)
-    console.print(f"  [green]✔[/green] [bold]{name}[/bold]  [dim]{arch}[/dim]")
-    if "ctx_length" in info:
-        console.print(
-            f"  [dim]Contexte natif du modèle :[/dim] "
-            f"[bold cyan]{info['ctx_length']:,}[/bold cyan] tokens"
-        )
+        arch = info.get("arch", "?")
+        name = info.get("name", Path(model_path).stem)
+        console.print(f"  [green]✔[/green] [bold]{name}[/bold]  [dim]{arch}[/dim]")
+        if "ctx_length" in info:
+            console.print(
+                f"  [dim]Contexte natif du modèle :[/dim] "
+                f"[bold cyan]{info['ctx_length']:,}[/bold cyan] tokens"
+            )
 
-    return model_path, info
+    return response_type, model_path, info
 
 
 # ─── Configuration des paramètres ───────────────────────────────────────────
@@ -304,7 +324,13 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
 # ─── Récapitulatif avant lancement ──────────────────────────────────────────
 
 
-def show_command_preview(server: str, model: str, params: dict, cmd: list[str]) -> None:
+def show_command_preview(
+    server: str,
+    routing_mode: bool,
+    params: dict,
+    cmd: list[str],
+    model: str | None = None,
+) -> None:
     console.print()
     console.print(Rule("[bold cyan]Récapitulatif[/bold cyan]", style="cyan"))
     console.print()
@@ -324,9 +350,12 @@ def show_command_preview(server: str, model: str, params: dict, cmd: list[str]) 
     info_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
     info_table.add_column(style="dim")
     info_table.add_column(style="bold white")
-    info_table.add_row("Modèle", Path(model).name)
+    if routing_mode:
+        info_table.add_row("Routing mode", "enabled")
+    else:
+        info_table.add_row("Modèle", Path(model).name)
     info_table.add_row("GPU Layers", str(params["ngl"]))
-    info_table.add_row("Contexte", f"{params['ctx']:,} tokens")
+    info_table.add_row("Contexte", "Define for each model")
     info_table.add_row("Threads", str(params["threads"]))
     info_table.add_row("Serveur", f"http://{params['host']}:{params['port']}")
     info_table.add_row("Split mode", params["split_mode"])

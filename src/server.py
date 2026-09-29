@@ -16,53 +16,37 @@ console = Console()
 
 
 def build_command(
-    server: str,
-    model: str,
-    params: dict,
-    enable_jinja: bool = False,
-    enable_model_routing: bool = False,
+    server: str, model: str, params: dict, routing_mode_enabled: bool = False
 ) -> list[str]:
-    """Construit la liste d'arguments pour subprocess."""
-    cmd = [
-        server,
-        "-m",
-        str(model),
-        "-ngl",
-        str(params["ngl"]),
-        "-c",
-        str(params["ctx"]),
-        "--threads",
-        str(params["threads"]),
-        "--host",
-        params["host"],
-        "--port",
-        str(params["port"]),
-        "--split-mode",
-        params["split_mode"],
-        # "--parallel", "4"
-    ]
+    """
+    Construct an argument list for subprocess
+    """
+    cmd = [server]
+
+    if not routing_mode_enabled:
+        cmd.extend(["-m", str(model)])
+    else:
+        cmd.extend(["--models-dir", str(MODELS_DIRS[0])])
+
+    cmd.extend(["-ngl", str(params["ngl"])])
+    cmd.extend(["-c", str(params["ctx"])])
+    cmd.extend(["--threads", str(params["threads"])])
+    cmd.extend(["--host", params["host"]])
+    cmd.extend(["--port", str(params["port"])])
+    cmd.extend(["--split-mode", params["split_mode"]])
+
     # --ctx-shift est actif par défaut dans les versions récentes de llama.cpp ;
     # on le désactive explicitement en mode "truncate".
     if params.get("ctx_mode") == "truncate":
         cmd.append("--no-context-shift")
 
-    if (
-        enable_jinja and not enable_model_routing
-    ):  # For some reason, jinja and model routing are incompatible
-        cmd.append("--jinja")
-
-    if enable_model_routing:
-        # Overwrite the -m argument.
-        cmd[1] = (
-            "--models-dir",
-            str(MODELS_DIRS[0]),
-        )
-
     return cmd
 
 
-def launch_server(server: str, model: str, params: dict) -> None:
-    cmd = build_command(server, model, params)
+def launch_server(cmd: list, params: dict) -> None:
+    """
+    Launch the server into a subprocess by using cmd string.
+    """
     console.print(
         Panel(
             f"[dim]  Commande : {' '.join(cmd)}/dim\n\n"
@@ -74,12 +58,12 @@ def launch_server(server: str, model: str, params: dict) -> None:
     )
     console.print()
     try:
-        subprocess.run(cmd, check=False)
+        subprocess.run(" ".join(cmd), check=False)
     except KeyboardInterrupt:
         console.print("\n\n  [yellow]⚠[/yellow]  Serveur arrêté par l'utilisateur.")
     except FileNotFoundError:
         console.print(
-            f"\n  [red]✘[/red]  Exécutable introuvable : [bold]{server}[/bold]\n"
+            f"\n  [red]✘[/red]  Exécutable introuvable : [bold]{cmd[0]}[/bold]\n"
             "  Vérifiez le chemin vers llama-server.exe"
         )
     except Exception as e:  # noqa: BLE001
