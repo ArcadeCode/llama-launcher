@@ -24,6 +24,7 @@ console = Console()
 
 # ─── Installation des dépendances au premier lancement ──────────────────────
 
+
 def ensure_deps() -> None:
     missing = []
     for pkg in ("rich", "gguf", "questionary"):
@@ -48,6 +49,7 @@ from settings import load_for_model, save_for_model
 
 # ─── Point d'entrée ──────────────────────────────────────────────────────────
 
+
 def main() -> None:
     ui.print_banner()
 
@@ -69,8 +71,8 @@ def main() -> None:
     # 3 — Chargement des paramètres sauvegardés (ou defaults)
     params = load_for_model(selected_model)
     # Détecter si des paramètres personnalisés existent déjà pour ce modèle
-    from config import DEFAULTS
     from settings import load_all
+
     model_key = Path(selected_model).name
     has_saved = model_key in load_all()
 

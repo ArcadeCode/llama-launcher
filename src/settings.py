@@ -31,7 +31,8 @@ def load_all() -> dict:
     try:
         data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
-    except Exception:
+    # TODO: Add more exceptions handling to this function.
+    except Exception:  # noqa: BLE001
         return {}
 
 
@@ -64,6 +65,7 @@ def save_for_model(model_path: str, params: dict) -> None:
             json.dumps(all_settings, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-    except Exception as e:
+    # TODO: Add more exceptions to this function.
+    except Exception as e:  # noqa: BLE001
         # Non bloquant : on prévient sans planter
         print(f"  [Avertissement] Impossible de sauvegarder les paramètres : {e}")

@@ -15,43 +15,66 @@ from config import MODELS_DIRS
 console = Console()
 
 
-def build_command(server: str, model: str, params: dict, enable_jinja: bool = True, enable_model_routing: bool = False) -> list[str]:
+def build_command(
+    server: str,
+    model: str,
+    params: dict,
+    enable_jinja: bool = False,
+    enable_model_routing: bool = False,
+) -> list[str]:
     """Construit la liste d'arguments pour subprocess."""
     cmd = [
         server,
-        "-m", str(model),
-        "-ngl", str(params["ngl"]),
-        "-c", str(params["ctx"]),
-        "--threads", str(params["threads"]),
-        "--host", params["host"],
-        "--port", str(params["port"]),
-        "--split-mode", params["split_mode"],
+        "-m",
+        str(model),
+        "-ngl",
+        str(params["ngl"]),
+        "-c",
+        str(params["ctx"]),
+        "--threads",
+        str(params["threads"]),
+        "--host",
+        params["host"],
+        "--port",
+        str(params["port"]),
+        "--split-mode",
+        params["split_mode"],
+        # "--parallel", "4"
     ]
     # --ctx-shift est actif par défaut dans les versions récentes de llama.cpp ;
     # on le désactive explicitement en mode "truncate".
     if params.get("ctx_mode") == "truncate":
         cmd.append("--no-context-shift")
 
-    if enable_jinja and not enable_model_routing: # For some reason, jinja and model routing are incompatible
+    if (
+        enable_jinja and not enable_model_routing
+    ):  # For some reason, jinja and model routing are incompatible
         cmd.append("--jinja")
 
     if enable_model_routing:
         # Overwrite the -m argument.
-        cmd[1] = "--models-dir", str(MODELS_DIRS[0]),
+        cmd[1] = (
+            "--models-dir",
+            str(MODELS_DIRS[0]),
+        )
 
     return cmd
 
+
 def launch_server(server: str, model: str, params: dict) -> None:
     cmd = build_command(server, model, params)
-    console.print(Panel(
-        f"[bold yellow]⚡ Démarrage sur http://{params['host']}:{params['port']}[/bold yellow]\n"
-        "[dim]Appuyez sur Ctrl+C pour arrêter[/dim]",
-        border_style="yellow",
-        box=box.HEAVY,
-    ))
+    console.print(
+        Panel(
+            f"[dim]  Commande : {' '.join(cmd)}/dim\n\n"
+            f"[bold yellow]⚡ Démarrage sur http://{params['host']}:{params['port']}[/bold yellow]\n"
+            "[dim]Appuyez sur Ctrl+C pour arrêter[/dim]",
+            border_style="yellow",
+            box=box.HEAVY,
+        )
+    )
     console.print()
     try:
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=False)
     except KeyboardInterrupt:
         console.print("\n\n  [yellow]⚠[/yellow]  Serveur arrêté par l'utilisateur.")
     except FileNotFoundError:

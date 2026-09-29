@@ -1,5 +1,5 @@
 """
-discovery.py — Recherche de l'exécutable llama-server et des fichiers .gguf.
+discovery.py - Search for llama-server executable and .gguf files
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from config import LLAMA_SERVER_PATHS, MODELS_DIRS, SOURCE_MARKERS
 
 
 def find_server_executable() -> str | None:
-    """Retourne le premier exécutable llama-server trouvé, ou None."""
+    """Return the first `llama-server` executable found or None in case of failure"""
     for path in LLAMA_SERVER_PATHS:
         if Path(path).exists():
             return str(path)
@@ -46,16 +46,3 @@ def find_models(dirs: list[str] | None = None) -> list[Path]:
             models.append(f)
 
     return models
-
-
-def format_size(path: Path) -> str:
-    """Retourne la taille du fichier sous forme lisible (KB/MB/GB…)."""
-    try:
-        size = path.stat().st_size
-        for unit in ["B", "KB", "MB", "GB"]:
-            if size < 1024:
-                return f"{size:.1f} {unit}"
-            size /= 1024
-        return f"{size:.1f} TB"
-    except Exception:
-        return "?"

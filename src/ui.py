@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import questionary
-from questionary import Style as QStyle
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -18,33 +17,12 @@ from rich.table import Table
 from rich.text import Text
 
 from config import SPLIT_MODES
-from discovery import format_size
+from utils import format_size_from_path, q
 
 console = Console()
 
-# ─── Style questionary (cohérent avec le thème cyan/magenta de Rich) ────────
-
-Q_STYLE = QStyle([
-    ("qmark",        "fg:#00d7ff bold"),      # ⟫ prompt mark
-    ("question",     "fg:#ffffff bold"),
-    ("answer",       "fg:#00d7ff bold"),
-    ("pointer",      "fg:#00d7ff bold"),
-    ("highlighted",  "fg:#ffffff bg:#005f87 bold"),
-    ("selected",     "fg:#00d7ff"),
-    ("separator",    "fg:#444444"),
-    ("instruction",  "fg:#888888 italic"),
-])
-
-
-def _q(func, *args, **kwargs):
-    """Exécute un prompt questionary et lève KeyboardInterrupt si annulé (None)."""
-    result = func(*args, style=Q_STYLE, **kwargs).ask()
-    if result is None:
-        raise KeyboardInterrupt
-    return result
-
-
 # ─── Bannière ────────────────────────────────────────────────────────────────
+
 
 def print_banner() -> None:
     console.print()
@@ -52,17 +30,20 @@ def print_banner() -> None:
     title.append("⚡ ", style="bold yellow")
     title.append("llama.cpp", style="bold cyan")
     title.append(" Server Launcher", style="bold white")
-    console.print(Panel(
-        title,
-        subtitle="[dim]Gestionnaire de démarrage interactif[/dim]",
-        border_style="cyan",
-        padding=(0, 2),
-        box=box.DOUBLE_EDGE,
-    ))
+    console.print(
+        Panel(
+            title,
+            subtitle="[dim]Gestionnaire de démarrage interactif[/dim]",
+            border_style="cyan",
+            padding=(0, 2),
+            box=box.DOUBLE_EDGE,
+        )
+    )
     console.print()
 
 
 # ─── Sélection du serveur ────────────────────────────────────────────────────
+
 
 def select_server(default_server: str | None) -> str:
     console.print(Rule("[bold cyan]Exécutable llama-server[/bold cyan]", style="cyan"))
@@ -70,7 +51,7 @@ def select_server(default_server: str | None) -> str:
 
     if default_server:
         console.print(f"  [green]✔[/green] Trouvé : [bold]{default_server}[/bold]")
-        use_default = _q(
+        use_default = q(
             questionary.select,
             "  Utiliser ce chemin ?",
             choices=[
@@ -82,7 +63,7 @@ def select_server(default_server: str | None) -> str:
         if use_default:
             return default_server
 
-    return _q(
+    return q(
         questionary.text,
         "  Chemin vers llama-server",
         default=default_server or "llama-server",
@@ -90,6 +71,7 @@ def select_server(default_server: str | None) -> str:
 
 
 # ─── Sélection du modèle ────────────────────────────────────────────────────
+
 
 def select_model(models: list[Path]) -> tuple[str, dict]:
     """
@@ -103,22 +85,25 @@ def select_model(models: list[Path]) -> tuple[str, dict]:
     console.print()
 
     if not models:
-        console.print("  [yellow]⚠[/yellow]  Aucun fichier .gguf trouvé dans les dossiers par défaut.")
-        path = _q(questionary.text, "  Entrez le chemin complet du modèle")
+        console.print(
+            "  [yellow]⚠[/yellow]  Aucun fichier .gguf trouvé dans les dossiers par défaut."
+        )
+        path = q(questionary.text, "  Entrez le chemin complet du modèle")
         info = read_gguf_info(path)
         return path, info
 
     # Construction des choix : label affiché = "nom.gguf  (taille)"
+    # TODO: Edit by making this an table and adding Parameter count.
     MANUAL = "── Saisir un chemin manuellement... ──"
     choices = [
         questionary.Choice(
-            title=f"{m.name}  ({format_size(m)})",
+            title=f"{m.name}  ({format_size_from_path(m)})",
             value=str(m),
         )
         for m in models
     ] + [questionary.Choice(title=MANUAL, value=MANUAL)]
 
-    selected_value = _q(
+    selected_value = q(
         questionary.select,
         "  Choisissez un modèle",
         choices=choices,
@@ -127,11 +112,11 @@ def select_model(models: list[Path]) -> tuple[str, dict]:
     )
 
     if selected_value == MANUAL:
-        model_path = _q(questionary.text, "  Chemin complet du modèle")
+        model_path = q(questionary.text, "  Chemin complet du modèle")
     else:
         model_path = selected_value
 
-    console.print(f"\n  [dim]Lecture des métadonnées...[/dim]")
+    console.print("\n  [dim]Lecture des métadonnées...[/dim]")
     info = read_gguf_info(model_path)
 
     arch = info.get("arch", "?")
@@ -149,13 +134,17 @@ def select_model(models: list[Path]) -> tuple[str, dict]:
 # ─── Configuration des paramètres ───────────────────────────────────────────
 
 _PARAM_INFO = [
-    ("ngl",        "GPU Layers (-ngl)",   "Couches chargées sur GPU (100 = tout)"),
-    ("ctx",        "Context size (-c)",   "Taille du contexte en tokens"),
-    ("threads",    "Threads CPU",         "Nombre de threads CPU à utiliser"),
-    ("host",       "Host",                "Adresse d'écoute (0.0.0.0 = toutes interfaces)"),
-    ("port",       "Port",                "Port HTTP du serveur"),
-    ("split_mode", "Split mode",          f"Répartition GPU : {'/'.join(SPLIT_MODES)}"),
-    ("ctx_mode",   "Mode contexte",       "truncate = erreur si dépassement | rolling = oubli du début"),
+    ("ngl", "GPU Layers (-ngl)", "Couches chargées sur GPU (100 = tout)"),
+    ("ctx", "Context size (-c)", "Taille du contexte en tokens"),
+    ("threads", "Threads CPU", "Nombre de threads CPU à utiliser"),
+    ("host", "Host", "Adresse d'écoute (0.0.0.0 = toutes interfaces)"),
+    ("port", "Port", "Port HTTP du serveur"),
+    ("split_mode", "Split mode", f"Répartition GPU : {'/'.join(SPLIT_MODES)}"),
+    (
+        "ctx_mode",
+        "Mode contexte",
+        "truncate = erreur si dépassement | rolling = oubli du début",
+    ),
 ]
 
 DONE_SENTINEL = "__done__"
@@ -169,9 +158,9 @@ def _params_table(params: dict, gguf_ctx: int | None) -> None:
         box=box.SIMPLE_HEAVY,
         padding=(0, 1),
     )
-    table.add_column("#",           style="dim",        width=4,  justify="right")
-    table.add_column("Paramètre",   style="bold white",  width=22)
-    table.add_column("Valeur",      style="cyan",        justify="right")
+    table.add_column("#", style="dim", width=4, justify="right")
+    table.add_column("Paramètre", style="bold white", width=22)
+    table.add_column("Valeur", style="cyan", justify="right")
     table.add_column("Description", style="dim")
 
     for i, (key, label, desc) in enumerate(_PARAM_INFO, 1):
@@ -210,13 +199,15 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
         )
 
     if saved_note:
-        console.print("  [dim]↩  Paramètres chargés depuis la session précédente.[/dim]")
+        console.print(
+            "  [dim]↩  Paramètres chargés depuis la session précédente.[/dim]"
+        )
 
     console.print()
     _params_table(current, gguf_ctx)
     console.print()
 
-    wants_edit = _q(
+    wants_edit = q(
         questionary.select,
         "  Modifier des paramètres ?",
         choices=[
@@ -239,9 +230,13 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
                 value=key,
             )
             for key, label, desc in _PARAM_INFO
-        ] + [questionary.Choice(title="✔  Terminer les modifications", value=DONE_SENTINEL)]
+        ] + [
+            questionary.Choice(
+                title="✔  Terminer les modifications", value=DONE_SENTINEL
+            )
+        ]
 
-        chosen_key = _q(
+        chosen_key = q(
             questionary.select,
             "  Paramètre à modifier",
             choices=param_choices,
@@ -256,7 +251,7 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
         current_val = updated[chosen_key]
 
         if chosen_key == "split_mode":
-            new_val = _q(
+            new_val = q(
                 questionary.select,
                 f"  {label}",
                 choices=SPLIT_MODES,
@@ -265,7 +260,7 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
             updated[chosen_key] = new_val
 
         elif chosen_key == "ctx_mode":
-            new_val = _q(
+            new_val = q(
                 questionary.select,
                 f"  {label}",
                 choices=[
@@ -283,7 +278,7 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
             updated[chosen_key] = new_val
 
         elif isinstance(current_val, int):
-            raw = _q(
+            raw = q(
                 questionary.text,
                 f"  {label}",
                 default=str(current_val),
@@ -292,19 +287,22 @@ def configure_params(current: dict, gguf_info: dict, saved_note: bool = False) -
             updated[chosen_key] = int(raw)
 
         else:
-            new_val = _q(
+            new_val = q(
                 questionary.text,
                 f"  {label}",
                 default=str(current_val),
             )
             updated[chosen_key] = new_val
 
-        console.print(f"  [green]✔[/green] {label} → [bold cyan]{updated[chosen_key]}[/bold cyan]")
+        console.print(
+            f"  [green]✔[/green] {label} → [bold cyan]{updated[chosen_key]}[/bold cyan]"
+        )
 
     return updated
 
 
 # ─── Récapitulatif avant lancement ──────────────────────────────────────────
+
 
 def show_command_preview(server: str, model: str, params: dict, cmd: list[str]) -> None:
     console.print()
@@ -312,24 +310,26 @@ def show_command_preview(server: str, model: str, params: dict, cmd: list[str]) 
     console.print()
 
     cmd_str = " \\\n    ".join(cmd)
-    console.print(Panel(
-        f"[bold green]{cmd_str}[/bold green]",
-        title="[bold]Commande générée[/bold]",
-        border_style="green",
-        box=box.ROUNDED,
-        padding=(1, 2),
-    ))
+    console.print(
+        Panel(
+            f"[bold green]{cmd_str}[/bold green]",
+            title="[bold]Commande générée[/bold]",
+            border_style="green",
+            box=box.ROUNDED,
+            padding=(1, 2),
+        )
+    )
     console.print()
 
     info_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
     info_table.add_column(style="dim")
     info_table.add_column(style="bold white")
-    info_table.add_row("Modèle",        Path(model).name)
-    info_table.add_row("GPU Layers",    str(params["ngl"]))
-    info_table.add_row("Contexte",      f"{params['ctx']:,} tokens")
-    info_table.add_row("Threads",       str(params["threads"]))
-    info_table.add_row("Serveur",       f"http://{params['host']}:{params['port']}")
-    info_table.add_row("Split mode",    params["split_mode"])
+    info_table.add_row("Modèle", Path(model).name)
+    info_table.add_row("GPU Layers", str(params["ngl"]))
+    info_table.add_row("Contexte", f"{params['ctx']:,} tokens")
+    info_table.add_row("Threads", str(params["threads"]))
+    info_table.add_row("Serveur", f"http://{params['host']}:{params['port']}")
+    info_table.add_row("Split mode", params["split_mode"])
     info_table.add_row(
         "Mode contexte",
         "[bold green]rolling (oubli du début)[/bold green]"
@@ -342,8 +342,9 @@ def show_command_preview(server: str, model: str, params: dict, cmd: list[str]) 
 
 # ─── Confirmation finale ─────────────────────────────────────────────────────
 
+
 def confirm_launch(host: str, port: int) -> bool:
-    return _q(
+    return q(
         questionary.select,
         f"  Lancer le serveur sur http://{host}:{port} ?",
         choices=[
