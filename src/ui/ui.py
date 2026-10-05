@@ -7,7 +7,6 @@ Toutes les interactions avec l'utilisateur passent par ce module.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 import questionary
 from rich import box
