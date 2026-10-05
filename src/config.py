@@ -27,6 +27,7 @@ LLAMA_SERVER_PATHS: list[str] = [
     "llama-server",
 ]
 
+# TODO: Take of MODELS_DIRS and replace it by an MODEL dir no multiples folders.
 MODELS_DIRS: list[str] = [
     r"C:/Users/Utilisateur/Desktop/llama/models",
     # r"C:/Users/Utilisateur/Desktop/llama",
@@ -35,10 +36,12 @@ MODELS_DIRS: list[str] = [
 ]
 
 # Répertoire où est stocké settings.json (relatif au script principal)
-SETTINGS_DIR: Path = Path(
-    MODELS_DIRS[0]
-)  # TODO: Take of MODELS_DIRS and replace it by an MODEL dir no multiples folders.
+SETTINGS_DIR: Path = Path(MODELS_DIRS[0])
 SETTINGS_FILE: Path = SETTINGS_DIR / Path("settings.json")
+
+MEMORY_PATH: Path = Path(MODELS_DIRS[0] / Path("memory.json"))
+
+TZ_OFFSET: int = +2  # Central European Summer Time
 
 # Dossiers qui trahissent un dépôt source llama.cpp — on exclut tout .gguf
 # dont le chemin traverse l'un d'eux.

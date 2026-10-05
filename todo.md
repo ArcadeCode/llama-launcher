@@ -21,3 +21,4 @@ This file contain each tasks to check for the v1.0.0 of the project.
 - [ ] Add an "unload model" button to retrieve some ram for tasks between chats sessions.
 - [ ] Add `--ngl` best value finder script directly in the project.
 - [ ] Add a Benchmark runner tool to evaluate Models.
+- [ ] Add auto "model type" to GGUF converter.
