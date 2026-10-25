@@ -1,9 +1,9 @@
 """
-settings.py — Persistance des paramètres par modèle dans models/settings.json.
+settings.py
 
-Structure du fichier :
+File structure :
 {
-    "nom_du_fichier.gguf": {
+    "file_name.gguf": {
         "ngl": 100,
         "ctx": 8192,
         ...

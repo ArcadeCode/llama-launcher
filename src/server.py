@@ -34,6 +34,7 @@ def build_command(
     cmd.extend(["--host", params["host"]])
     cmd.extend(["--port", str(params["port"])])
     cmd.extend(["--split-mode", params["split_mode"]])
+    cmd.append("--ui-mcp-proxy")
 
     # --ctx-shift est actif par défaut dans les versions récentes de llama.cpp ;
     # on le désactive explicitement en mode "truncate".
